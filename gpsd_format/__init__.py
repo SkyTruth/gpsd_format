@@ -6,11 +6,10 @@ A collection of tools for working with the GPSD JSON format (or the same format 
 """
 
 
-from . import schema
 from . import io
-from . import validate
-
 from .io import open
+from . import schema
+from . import validate
 
 
 __version__ = "0.2"

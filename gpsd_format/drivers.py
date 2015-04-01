@@ -70,10 +70,16 @@ class BaseDriver(object):
         self._modes = None
         self._name = None
         self._f = None
-        self.obj = self.builder(*args, **kwargs)
+        self.obj = self._builder(*args, **kwargs)
 
     def __iter__(self):
         return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def next(self):
         return next(self.obj)
@@ -81,7 +87,7 @@ class BaseDriver(object):
     def __next__(self):
         return self.next()
 
-    def builder(self, f, mode='r', reader=None, writer=None, modes=None, name=None, **kwargs):
+    def _builder(self, f, mode='r', reader=None, writer=None, modes=None, name=None, **kwargs):
 
         self._f = f
         self._modes = modes
@@ -128,6 +134,7 @@ class NewlineJSON(BaseDriver):
 
     name = 'newlinejson'
     extensions = ('json', 'nljson')
+    modes = ('r', 'w', 'a')
 
     def __init__(self, f, mode='r', **kwargs):
 
@@ -136,7 +143,7 @@ class NewlineJSON(BaseDriver):
             f=f, mode=mode,
             reader=newlinejson.Reader,
             writer=newlinejson.Writer,
-            modes=('r', 'w', 'a'),
+            modes=self.modes,
             name=self.name,
             **kwargs
         )
@@ -145,7 +152,8 @@ class NewlineJSON(BaseDriver):
 class MsgPack(BaseDriver):
 
     name = 'msgpack'
-    extensions = 'msgpack',
+    extensions = ('msg', 'msgpack')
+    modes = ('r', 'w', 'a')
 
     def __init__(self, f, mode='r', **kwargs):
 
@@ -154,7 +162,7 @@ class MsgPack(BaseDriver):
             f=f, mode=mode,
             reader=msgpack.Unpacker,
             writer=msgpack.Packer,
-            modes=('r', 'w', 'a'),
+            modes=self.modes,
             name=self.name,
             **kwargs
         )
@@ -167,6 +175,7 @@ class GZIP(BaseDriver):
 
     name = 'gzip'
     extensions = 'gz',
+    modes = ('r', 'w', 'a')
     compression = True
 
     def __init__(self, f, mode='r', **kwargs):
@@ -182,10 +191,21 @@ class GZIP(BaseDriver):
             f=f, mode=mode,
             reader=_reader,
             writer=_writer,
-            modes=('r', 'w', 'a'),
+            modes=self.modes,
             name=self.name,
             **kwargs
         )
+
+
+def validate_driver(driver):
+    assert isinstance(driver.name, str)
+    assert isinstance(driver.extensions, (tuple, list))
+    assert isinstance(driver.modes, (tuple, list))
+    for attr in (
+            '__iter__', '__next__', 'read', 'write', 'from_path', 'modes', 'name', 'write', 'close', 'closed', 'read'):
+        assert hasattr(driver, attr)
+
+    return True
 
 
 # TODO: Make this a function that does some baseline driver validation and logs when a driver can't be registered

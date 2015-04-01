@@ -6,8 +6,7 @@ A collection of tools for working with the GPSD JSON format (or the same format 
 """
 
 
-from . import io
-from .io import open
+from ._io import open
 from . import schema
 from . import validate
 
@@ -34,4 +33,3 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-

@@ -2,6 +2,8 @@
 Commandline interface for gpsd_format
 """
 
+
+import code
 import datetime
 import json
 import os
@@ -124,3 +126,22 @@ def convert(ctx, infile, outfile):
             writer = gpsd_format.io.GPSDWriter(of)
             for row in reader:
                 writer.write(row)
+
+
+@main.command()
+@click.argument("infile")
+@click.pass_context
+def insp(ctx, infile):
+
+    """
+    Launch an interactive session.
+    """
+
+    with gpsd_format.open(infile, driver='msgpack') as src:
+        code.interact(
+            'GPSD %s Interactive Inspector (Python %s)\n'
+            'Type "src.schema", "next(src)", or "help(src)" '
+            'for more information.' % (
+                gpsd_format.__version__, '.'.join(
+                    map(str, sys.version_info[:3]))),
+            local=locals())

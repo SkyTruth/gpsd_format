@@ -45,12 +45,6 @@ def open(path, mode='r', dmode=None, cmode=None, compression=None, driver=None, 
     if cmode is None:
         cmode = mode
 
-    # If the user didn't specify which driver to use, attempt to determine from the filepath
-    if driver is None:
-        driver = drivers.detect_file_type(path)
-    else:
-        driver = drivers.get_driver(driver)
-
     # The user specified which compression type they want to use - fetch the driver
     if compression is not None:
         compression_driver = drivers.detect_compression_type(path)
@@ -64,6 +58,12 @@ def open(path, mode='r', dmode=None, cmode=None, compression=None, driver=None, 
         except ValueError:
             compression_driver = None
 
+    # If the user didn't specify which driver to use, attempt to determine from the filepath
+    if driver is None:
+        driver = drivers.detect_file_type(path.rpartition('.')[0] if compression_driver is not None else path)
+    else:
+        driver = drivers.get_driver(driver)
+
     if compression_driver is None:
         stream = driver.from_path(path, mode=dmode, **do)
     else:
@@ -74,8 +74,22 @@ def open(path, mode='r', dmode=None, cmode=None, compression=None, driver=None, 
 
 class Stream(object):
 
-    def __init__(self, f, mode='r', force_message=False, keep_fields=True, skip_failures=False, convert=True):
-        self._f = f
+    def __init__(self, stream, mode='r', force_message=False, keep_fields=True, skip_failures=False, convert=True):
+
+        """
+        Read or write a stream of AIS data.
+
+        Parameters
+        ----------
+        stream : file-like object or iterable
+            Expects one dictionary per iteration.
+        mode : str, optional
+            Determines if stream is operating in read, write, or append mode.
+        force_message : bool, optional
+
+        """
+
+        self._stream = stream
         self.force_message = force_message
         self.keep_fields = keep_fields
         self.skip_failures = skip_failures
@@ -83,7 +97,7 @@ class Stream(object):
         self._mode = mode
 
     def __iter__(self):
-        return self.next()
+        return self
 
     def __next__(self):
         return self.next()
@@ -92,32 +106,23 @@ class Stream(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._f.close()
-
-    def _io_check(self):
-        if self.closed:
-            raise IOError("Stream not open for writing")
+        self._stream.close()
 
     @property
     def closed(self):
-        return self._f.closed
+        return self._stream.closed
 
     @property
     def mode(self):
         return self._mode
 
     def next(self):
-        """
-        Get the next non-empty line in the file
-
-        Returns
-        -------
-        dict
-        """
+        if self.mode not in ('r', 'a'):
+            raise IOError("Datasource not open for reading")
 
         line = None
         try:
-            loaded = line = next(self._f)
+            loaded = line = next(self._stream)
             if self.convert:
                 loaded = schema.import_msg(line, skip_failures=self.skip_failures)
                 if self.force_message:
@@ -128,43 +133,25 @@ class Stream(object):
         except Exception as e:
             if not self.skip_failures:
                 import traceback
-                raise Exception("%s: %s: %s\n%s" % (getattr(self._f, 'name', 'Unknown'), type(e), e, "    " + traceback.format_exc().replace("\n", "\n    ")))
+                raise Exception("%s: %s: %s\n%s" % (getattr(self._stream, 'name', 'Unknown'), type(e), e, "    " + traceback.format_exc().replace("\n", "\n    ")))
             return {"__invalid__": {"__content__": line}}
 
     def close(self):
-        self._f.close()
+        self._stream.close()
 
     def writeheader(self):
 
         """
         Write a file header if one is needed by the container format
         """
-        self._io_check()
-        self._f.writeheader()
+        if self.mode != 'w':
+            raise IOError("Datasource not open for writing")
+        self._stream.writeheader()
 
     def write(self, msg, **kwargs):
-
-        """
-        Write a line to the output file minus any keys that do not appear in
-        the ``fieldnames`` property.
-
-        Returns
-        -------
-        None
-        """
-
-        self._io_check()
-        if not self.keep_fields and 'type' in msg:
-            row = {field: val for field, val in six.iteritems(msg)
-                   if field in schema.get_default_msg(msg['type'])}
-
-        if self.convert:
-            if self.force_message:
-                row = schema.force_msg(msg, keep_fields=self.keep_fields)
-            row = schema.export_msg(msg, skip_failures=self.skip_failures)
-
-        self._f.write(msg)
-
+        if self.mode != 'w':
+            raise IOError("Datasource not open for writing")
+        self._stream.write(msg)
 
 
 # __all__ = ['ContainerFormat', 'GPSDReader', 'GPSDWriter']

@@ -4,7 +4,6 @@ Unittests for: gpsd_format._schema_def
 
 
 import datetime
-import unittest
 
 import six
 
@@ -12,53 +11,40 @@ import gpsd_format.schema
 import gpsd_format._schema_def
 
 
-class TestDatetime2Str(unittest.TestCase):
+def test_datetime2str():
 
-    def test_standard(self):
+    now = datetime.datetime.now()
 
-        """
-        Convert a datetime object to a string
-        """
+    # Manually export datetime to the expected string format
+    expected_string = now.strftime(gpsd_format.schema.DATETIME_FORMAT)
 
-        now = datetime.datetime.now()
+    # Convert the datetime object to a string with the function
+    converted = gpsd_format._schema_def.datetime2str(now)
+    assert expected_string == converted
 
-        # Manually export datetime to the expected string format
-        expected_string = now.strftime(gpsd_format.schema.DATETIME_FORMAT)
-
-        # Convert the datetime object to a string with the function
-        converted = gpsd_format._schema_def.datetime2str(now)
-        self.assertEqual(expected_string, converted)
-
-        # Reload the string with datetime and make sure everything matches
-        reloaded = datetime.datetime.strptime(converted, gpsd_format.schema.DATETIME_FORMAT)
-        self.assertEqual(now.year, reloaded.year)
-        self.assertEqual(now.month, reloaded.month)
-        self.assertEqual(now.day, reloaded.day)
-        self.assertEqual(now.hour, reloaded.hour)
-        self.assertEqual(now.second, reloaded.second)
-        self.assertEqual(now.microsecond, reloaded.microsecond)
-        self.assertEqual(now.tzinfo, reloaded.tzinfo)
+    # Reload the string with datetime and make sure everything matches
+    reloaded = datetime.datetime.strptime(converted, gpsd_format.schema.DATETIME_FORMAT)
+    assert now.year == reloaded.year
+    assert now.month == reloaded.month
+    assert now.day == reloaded.day
+    assert now.hour == reloaded.hour
+    assert now.second == reloaded.second
+    assert now.microsecond == reloaded.microsecond
+    assert now.tzinfo == reloaded.tzinfo
 
 
-class TestStr2Datetime(unittest.TestCase):
+def test_str2datetime():
 
-    def test_standard(self):
-
-        """
-        Convert a standard datetime string to a datetime object
-        """
-
-        string = '2014-12-19T15:29:36.479005Z'
-        expected = datetime.datetime.strptime(string, gpsd_format.schema.DATETIME_FORMAT)
-        converted = gpsd_format._schema_def.str2datetime(string)
-        self.assertEqual(string, converted.strftime(gpsd_format.schema.DATETIME_FORMAT))
-
-        self.assertEqual(expected.year, converted.year)
-        self.assertEqual(expected.month, converted.month)
-        self.assertEqual(expected.day, converted.day)
-        self.assertEqual(expected.hour, converted.hour)
-        self.assertEqual(expected.second, converted.second)
-        self.assertEqual(expected.tzinfo, converted.tzinfo)
+    string = '2014-12-19T15:29:36.479005Z'
+    expected = datetime.datetime.strptime(string, gpsd_format.schema.DATETIME_FORMAT)
+    converted = gpsd_format._schema_def.str2datetime(string)
+    assert string == converted.strftime(gpsd_format.schema.DATETIME_FORMAT)
+    assert expected.year == converted.year
+    assert expected.month == converted.month
+    assert expected.day == converted.day
+    assert expected.hour == converted.hour
+    assert expected.second == converted.second
+    assert expected.tzinfo == converted.tzinfo
 
 
 def test_fields_by_msg_type():
@@ -66,3 +52,31 @@ def test_fields_by_msg_type():
         for version, definition in six.iteritems(gpsd_format._schema_def.VERSIONS):
             for f in fields:
                 assert f in definition
+
+
+def test_schema_definitions():
+    expected_attributes = {
+        'default': None,
+        'type': None,
+        # TODO: Populate schema and uncomment to test and remove the section where good, bad, and test are deleted from the attributes
+        # 'good': None,
+        # 'bad': None,
+        'import': lambda x: x is None or hasattr(x, '__call__'),
+        'export': lambda x: x is None or hasattr(x, '__call__'),
+        'units': lambda x: isinstance(x, str),
+        'description': lambda x: isinstance(x, str),
+        'required': lambda x: x in (True, False),
+    }
+    for version, definition in six.iteritems(gpsd_format._schema_def.VERSIONS.copy()):
+        for field, attributes in six.iteritems(definition):
+            for _f in ('good', 'bad', 'test'):
+                if _f in attributes:
+                    del attributes[_f]
+            assert sorted(expected_attributes.keys()) == sorted(attributes.keys()), \
+                "Schema v%s field `%s' - expected and actual definition fields don't match: %s != %s" \
+                % (version, field, sorted(expected_attributes.keys()), sorted(attributes.keys()))
+
+            for attr, test_func in six.iteritems(expected_attributes):
+                if test_func is not None:
+                    assert test_func(attributes[attr]), "Schema v%s - definition field %s failed its test" \
+                                                        % (version, field)

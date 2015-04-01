@@ -119,22 +119,23 @@ class Stream(object):
     def next(self):
         if self.mode not in ('r', 'a'):
             raise IOError("Datasource not open for reading")
+        return next(self._stream)
 
-        line = None
-        try:
-            loaded = line = next(self._stream)
-            if self.convert:
-                loaded = schema.import_msg(line, skip_failures=self.skip_failures)
-                if self.force_message:
-                    loaded = schema.force_msg(loaded, keep_fields=self.keep_fields)
-            return loaded
-        except StopIteration:
-            raise
-        except Exception as e:
-            if not self.skip_failures:
-                import traceback
-                raise Exception("%s: %s: %s\n%s" % (getattr(self._stream, 'name', 'Unknown'), type(e), e, "    " + traceback.format_exc().replace("\n", "\n    ")))
-            return {"__invalid__": {"__content__": line}}
+        # line = None
+        # try:
+        #     loaded = line = next(self._stream)
+        #     if self.convert:
+        #         loaded = schema.import_msg(line, skip_failures=self.skip_failures)
+        #         if self.force_message:
+        #             loaded = schema.force_msg(loaded, keep_fields=self.keep_fields)
+        #     return loaded
+        # except StopIteration:
+        #     raise
+        # except Exception as e:
+        #     if not self.skip_failures:
+        #         import traceback
+        #         raise Exception("%s: %s: %s\n%s" % (getattr(self._stream, 'name', 'Unknown'), type(e), e, "    " + traceback.format_exc().replace("\n", "\n    ")))
+        #     return {"__invalid__": {"__content__": line}}
 
     def close(self):
         self._stream.close()

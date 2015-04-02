@@ -17,9 +17,8 @@ def get_driver(name):
     Accepts a string and returns the driver class associate dwith that name.
     """
 
-    for d in REGISTERED_DRIVERS:
-        if d.name == name:
-            return d
+    if name in BaseDriver.by_name and not BaseDriver.by_name[name].compression:
+        return BaseDriver.by_name[name]
     else:
         raise ValueError("Unrecognized driver name: %s" % name)
 
@@ -30,9 +29,8 @@ def get_compression(name):
     Accepts a string and returns the driver class associated with that name.
     """
 
-    for d in COMPRESSION_DRIVERS:
-        if d.name == name:
-            return d
+    if name in BaseDriver.by_name and BaseDriver.by_name[name].compression:
+        return BaseDriver.by_name[name]
     else:
         raise ValueError("Unrecognized compression name: %s" % name)
 
@@ -43,9 +41,9 @@ def detect_file_type(path):
     Given an file path, attempt to determine appropriate driver.
     """
 
-    for d in REGISTERED_DRIVERS:
-        if path.rpartition('.')[-1] in d.extensions:
-            return d
+    ext = path.rpartition('.')[-1]
+    if ext in BaseDriver.by_extension and not BaseDriver.by_extension[ext].compression:
+        return BaseDriver.by_extension[ext]
     else:
         raise ValueError("Can't determine driver: %s" % path)
 
@@ -56,14 +54,39 @@ def detect_compression_type(path):
     Given a file path, attempt to determine the appropriate compression driver.
     """
 
-    for d in COMPRESSION_DRIVERS:
-        if path.rpartition('.')[-1] in d.extensions:
-            return d
+    ext = path.rpartition('.')[-1]
+    if ext in BaseDriver.by_extension and BaseDriver.by_extension[ext].compression:
+        return BaseDriver.by_extension[ext]
     else:
         raise ValueError("Can't determine compression: %s" % path)
 
 
 class BaseDriver(object):
+    by_name = {}
+    by_extension = {}
+
+    class __metaclass__(type):
+        def __init__(driver, name, bases, members):
+            type.__init__(driver, name, bases, members)
+            if name != 'BaseDriver':
+                driver.register_driver()
+
+        def register_driver(driver):
+            driver.validate_driver()
+            BaseDriver.by_name[driver.name] = driver
+            for ext in driver.extensions:
+                BaseDriver.by_extension[ext] = driver
+
+        def validate_driver(driver):
+            assert isinstance(driver.name, str)
+            assert isinstance(driver.extensions, (tuple, list))
+            assert isinstance(driver.modes, (tuple, list))
+            for attr in (
+                    '__iter__', '__next__', 'read', 'write', 'from_path', 'modes', 'name', 'write', 'close', 'closed', 'read'):
+                assert hasattr(driver, attr)
+
+            return True
+
 
     def __init__(self, *args, **kwargs):
 
@@ -195,22 +218,3 @@ class GZIP(BaseDriver):
             name=self.name,
             **kwargs
         )
-
-
-def validate_driver(driver):
-    assert isinstance(driver.name, str)
-    assert isinstance(driver.extensions, (tuple, list))
-    assert isinstance(driver.modes, (tuple, list))
-    for attr in (
-            '__iter__', '__next__', 'read', 'write', 'from_path', 'modes', 'name', 'write', 'close', 'closed', 'read'):
-        assert hasattr(driver, attr)
-
-    return True
-
-
-# TODO: Make this a function that does some baseline driver validation and logs when a driver can't be registered
-# Keep track of every driver that is registered, just the ones the normal API cares about, and just the ones that are
-# used for compression IO.
-ALL_REGISTERED_DRIVERS = BaseDriver.__subclasses__()
-REGISTERED_DRIVERS = [d for d in ALL_REGISTERED_DRIVERS if getattr(d, 'register', True) and not getattr(d, 'compression', False)]
-COMPRESSION_DRIVERS = [d for d in ALL_REGISTERED_DRIVERS if getattr(d, 'compression', False)]
